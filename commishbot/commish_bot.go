@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 )
 
@@ -360,20 +361,57 @@ func GetNumFumbles(pPlayerStats map[string]PlayerStats, pPlayerId string) float6
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+type PrizeEntry struct {
+   Score float64
+   Owner string
+}
+
+type PrizeEntries []PrizeEntry
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (prizeEntries PrizeEntries) Len() int {
+   return len(prizeEntries)
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (prizeEntries PrizeEntries) Less(i, j int) bool {
+   return prizeEntries[i].Score < prizeEntries[j].Score
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (prizeEntries PrizeEntries) Swap(i, j int) {
+   prizeEntries[i], prizeEntries[j] = prizeEntries[j], prizeEntries[i]
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (prizeEntries PrizeEntries) Reverse() {
+   for i := len(prizeEntries)/2-1; i >= 0; i-- {
+      opp := len(prizeEntries)-1-i
+      prizeEntries[i], prizeEntries[opp] = prizeEntries[opp], prizeEntries[i]
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week1Summary(pLeagueInfo LeagueInfo) {
 
    week := 1
    criteria := "Hot Start - Highest Starting Team Score"
 
-   var summaries []string
-   weekSummary := fmt.Sprintf("Week %d Criteria: %s", week, criteria)
-
-   summaries = append(summaries, weekSummary)
+   var prizeEntries PrizeEntries
 
    matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
 
    for _, roster := range pLeagueInfo.mRosters {
-      owner := pLeagueInfo.mDisplayNames[roster.Owner_id]
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
       if err != nil {
@@ -381,18 +419,24 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
          return
       }
 
-      totalStarterPoints := 0.0
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
 
       for _, starterPoints := range matchupRoster.Starters_points {
-         totalStarterPoints += starterPoints
+         prizeEntry.Score += starterPoints
       }
 
-      summary := fmt.Sprintf("   Owner: %s, Starter Points: %f", owner, totalStarterPoints)
-      summaries = append(summaries, summary)
+      prizeEntries = append(prizeEntries, prizeEntry)
    }
 
-   for _, summary := range summaries {
-      log.Print(summary)
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
    }
 }
 
