@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -398,6 +399,45 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week3Summary(pLeagueInfo LeagueInfo) {
+
+   week := 3
+   criteria := "MVP - Highest Starting Player Score"
+
+   var summaries []string
+   weekSummary := fmt.Sprintf("Week %d Criteria: %s", week, criteria)
+
+   summaries = append(summaries, weekSummary)
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+      owner := pLeagueInfo.mDisplayNames[roster.Owner_id]
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      highestStarterPoints := 0.0
+
+      for _, starterPoints := range matchupRoster.Starters_points {
+         highestStarterPoints = math.Max(highestStarterPoints, starterPoints)
+      }
+
+      summary := fmt.Sprintf("   Owner: %s, Highest Starter Points: %f", owner, highestStarterPoints)
+      summaries = append(summaries, summary)
+   }
+
+   for _, summary := range summaries {
+      log.Print(summary)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week12Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player, pYear int) {
 
    week := 12
@@ -500,6 +540,7 @@ func main() {
       players := GetPlayers()
 
       Week1Summary(leagueInfo)
+      Week3Summary(leagueInfo)
       Week12Summary(leagueInfo, players, config.Year)
       Week13Summary(leagueInfo)
    }
