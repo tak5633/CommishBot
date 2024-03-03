@@ -446,6 +446,47 @@ func Week12Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player, pYear int
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week13Summary(pLeagueInfo LeagueInfo) {
+
+   week := 13
+   criteria := "Blackjack - Staring Player Score Closest to 21 Without Going Over"
+
+   var summaries []string
+   weekSummary := fmt.Sprintf("Week %d Criteria: %s", week, criteria)
+
+   summaries = append(summaries, weekSummary)
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+      owner := pLeagueInfo.mDisplayNames[roster.Owner_id]
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      blackjackPoints := 0.0
+
+      for _, starterPoints := range matchupRoster.Starters_points {
+         if starterPoints <= 21.0 && blackjackPoints < starterPoints {
+            blackjackPoints = starterPoints
+         }
+      }
+
+      summary := fmt.Sprintf("   Owner: %s, Blackjack Points: %f", owner, blackjackPoints)
+      summaries = append(summaries, summary)
+   }
+
+   for _, summary := range summaries {
+      log.Print(summary)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func main() {
    config := GetConfig("Config.json")
    log.Printf("%+v", config)
@@ -460,6 +501,7 @@ func main() {
 
       Week1Summary(leagueInfo)
       Week12Summary(leagueInfo, players, config.Year)
+      Week13Summary(leagueInfo)
    }
 }
 
