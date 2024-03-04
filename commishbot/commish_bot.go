@@ -502,11 +502,7 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
-      prizeEntry.Score = 0.0
-
-      for _, starterPoints := range matchupRoster.Starters_points {
-         prizeEntry.Score += starterPoints
-      }
+      prizeEntry.Score = GetTotalStarterPoints(matchupRoster)
 
       prizeEntries = append(prizeEntries, prizeEntry)
    }
