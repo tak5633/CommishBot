@@ -260,7 +260,40 @@ func GetMatchupRoster(pMatchups []Matchup, pRosterId int) (Matchup, error) {
       }
    }
 
-   return Matchup{}, errors.New("GetMatchupRoster: Failed to find roster Id (" + strconv.Itoa(pRosterId) + ")")
+   return Matchup{}, errors.New("GetMatchupRoster: Failed to find roster (Id: " + strconv.Itoa(pRosterId) + ")")
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetMatchupOpponentRoster(pMatchups []Matchup, pRosterId int) (Matchup, error) {
+
+   matchupRoster, err := GetMatchupRoster(pMatchups, pRosterId)
+
+   if err != nil {
+      return Matchup{}, err
+   }
+
+   for _, matchup := range pMatchups {
+      if matchup.Matchup_id == matchupRoster.Matchup_id && matchup.Roster_id != matchupRoster.Roster_id {
+         return matchup, nil
+      }
+   }
+
+   return Matchup{}, errors.New("GetMatchupOpponentRoster: Failed to find opponent roster (Id: " + strconv.Itoa(pRosterId) + ")")
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetTotalStarterPoints(pMatchup Matchup) float64 {
+   totalStarterPoints := 0.0
+
+   for _, starterPoints := range pMatchup.Starters_points {
+      totalStarterPoints += starterPoints
+   }
+
+   return totalStarterPoints
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -491,6 +524,59 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week2Summary(pLeagueInfo LeagueInfo) {
+
+   week := 2
+   criteria := "Dead Weight - Lowest Starting Player Score, Wins Matchup"
+
+   var prizeEntries PrizeEntries
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = math.Inf(1)
+
+      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
+      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+
+      if totalStarterPoints > totalOpponentStarterPoints {
+         for _, starterPoints := range matchupRoster.Starters_points {
+            prizeEntry.Score = math.Min(prizeEntry.Score, starterPoints)
+         }
+      }
+
+      prizeEntries = append(prizeEntries, prizeEntry)
+   }
+
+   sort.Sort(prizeEntries)
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week3Summary(pLeagueInfo LeagueInfo) {
 
    week := 3
@@ -511,7 +597,7 @@ func Week3Summary(pLeagueInfo LeagueInfo) {
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
-      prizeEntry.Score = 0.0
+      prizeEntry.Score = math.Inf(-1)
 
       for _, starterPoints := range matchupRoster.Starters_points {
          prizeEntry.Score = math.Max(prizeEntry.Score, starterPoints)
@@ -641,7 +727,7 @@ func Week13Summary(pLeagueInfo LeagueInfo) {
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
-      prizeEntry.Score = 0.0
+      prizeEntry.Score = math.Inf(-1)
 
       for _, starterPoints := range matchupRoster.Starters_points {
          if starterPoints <= 21.0 && prizeEntry.Score < starterPoints {
@@ -722,6 +808,7 @@ func main() {
       // players := GetPlayers()
 
       Week1Summary(leagueInfo)
+      Week2Summary(leagueInfo)
       Week3Summary(leagueInfo)
       Week4Summary(leagueInfo)
       Week12Summary(leagueInfo, config.Year)
