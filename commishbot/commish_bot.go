@@ -317,9 +317,12 @@ func GetPlayerName(pPlayers map[string]Player, pPlayerId string) string {
 //
 //--------------------------------------------------------------------------------------------------
 type PlayerStats struct {
+   Def_td float64
    Fum float64
    Fum_lost float64
    Ff float64
+   Rec_td float64
+   Rush_td float64
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -355,6 +358,16 @@ func GetNumFumbles(pPlayerStats map[string]PlayerStats, pPlayerId string) float6
    starterStats := pPlayerStats[pPlayerId]
 
    return starterStats.Fum_lost
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetNumNonPassingTds(pPlayerStats map[string]PlayerStats, pPlayerId string) float64 {
+
+   starterStats := pPlayerStats[pPlayerId]
+
+   return starterStats.Rec_td + starterStats.Rush_td + starterStats.Def_td
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -485,7 +498,7 @@ func Week3Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week12Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player, pYear int) {
+func Week12Summary(pLeagueInfo LeagueInfo, pYear int) {
 
    week := 12
    criteria := "Butterfingers - Most Starting Team Fumbles"
@@ -573,6 +586,50 @@ func Week13Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week14Summary(pLeagueInfo LeagueInfo, pYear int) {
+
+   week := 14
+   criteria := "Touchdown Dance - Team With The Most Touchdowns (Excludes QB Passing Touchdowns)"
+
+   var prizeEntries PrizeEntries
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   playerStats := GetPlayerStats(pYear, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
+
+      for _, starter := range matchupRoster.Starters {
+         numNonPassingTds := GetNumNonPassingTds(playerStats, starter)
+         prizeEntry.Score += numNonPassingTds
+      }
+
+      prizeEntries = append(prizeEntries, prizeEntry)
+   }
+
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Total Touchdowns: %f", prizeEntry.Owner, prizeEntry.Score)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func main() {
    config := GetConfig("Config.json")
    log.Printf("%+v", config)
@@ -583,12 +640,13 @@ func main() {
    if len(userLeagues) > 0 {
 
       leagueInfo := GetLeagueInfo(userLeagues[0].League_id)
-      players := GetPlayers()
+      // players := GetPlayers()
 
       Week1Summary(leagueInfo)
       Week3Summary(leagueInfo)
-      Week12Summary(leagueInfo, players, config.Year)
+      Week12Summary(leagueInfo, config.Year)
       Week13Summary(leagueInfo)
+      Week14Summary(leagueInfo, config.Year)
    }
 }
 
