@@ -414,6 +414,7 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
       if err != nil {
          log.Printf("Week %d Summary: %s", week, err.Error())
          return
@@ -448,34 +449,37 @@ func Week3Summary(pLeagueInfo LeagueInfo) {
    week := 3
    criteria := "MVP - Highest Starting Player Score"
 
-   var summaries []string
-   weekSummary := fmt.Sprintf("Week %d Criteria: %s", week, criteria)
-
-   summaries = append(summaries, weekSummary)
+   var prizeEntries PrizeEntries
 
    matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
 
    for _, roster := range pLeagueInfo.mRosters {
-      owner := pLeagueInfo.mDisplayNames[roster.Owner_id]
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
       if err != nil {
          log.Printf("Week %d Summary: %s", week, err.Error())
          return
       }
 
-      highestStarterPoints := 0.0
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
 
       for _, starterPoints := range matchupRoster.Starters_points {
-         highestStarterPoints = math.Max(highestStarterPoints, starterPoints)
+         prizeEntry.Score = math.Max(prizeEntry.Score, starterPoints)
       }
 
-      summary := fmt.Sprintf("   Owner: %s, Highest Starter Points: %f", owner, highestStarterPoints)
-      summaries = append(summaries, summary)
+      prizeEntries = append(prizeEntries, prizeEntry)
    }
 
-   for _, summary := range summaries {
-      log.Print(summary)
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Highest Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
    }
 }
 
