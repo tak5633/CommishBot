@@ -762,6 +762,58 @@ func Week6Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week7Summary(pLeagueInfo LeagueInfo) {
+
+   week := 7
+   criteria := "Biggest Blowout - Team With The Largest Margin of Victory"
+
+   var prizeEntries PrizeEntries
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = math.Inf(-1)
+
+      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
+      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+
+      if totalStarterPoints > totalOpponentStarterPoints {
+         prizeEntry.Score = totalStarterPoints - totalOpponentStarterPoints
+      }
+
+      prizeEntries = append(prizeEntries, prizeEntry)
+   }
+
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Margin of Victory: %f", prizeEntry.Owner, prizeEntry.Score)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week12Summary(pLeagueInfo LeagueInfo, pYear int) {
 
    week := 12
@@ -912,6 +964,7 @@ func main() {
       Week4Summary(leagueInfo)
       Week5Summary(leagueInfo)
       Week6Summary(leagueInfo)
+      Week7Summary(leagueInfo)
       Week12Summary(leagueInfo, config.Year)
       Week13Summary(leagueInfo)
       Week14Summary(leagueInfo, config.Year)
