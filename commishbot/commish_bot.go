@@ -266,6 +266,41 @@ func GetMatchupRoster(pMatchups []Matchup, pRosterId int) (Matchup, error) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func GetBenchPlayers(pMatchup Matchup) []string {
+   starterMap := make(map[string]int)
+
+   for _, starter := range pMatchup.Starters {
+      starterMap[starter] = 0
+   }
+
+   var benchPlayers []string
+
+   for _, player := range pMatchup.Players {
+      if _, isStarter := starterMap[player] ; !isStarter {
+         benchPlayers = append(benchPlayers, player)
+      }
+   }
+
+   return benchPlayers
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetBenchPlayerPoints(pMatchup Matchup) []float64 {
+   var benchPlayerPoints []float64
+   benchPlayers := GetBenchPlayers(pMatchup)
+
+   for _, benchPlayer := range benchPlayers {
+      benchPlayerPoints = append(benchPlayerPoints, pMatchup.Players_points[benchPlayer])
+   }
+
+   return benchPlayerPoints
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 type Player struct {
    First_name string
    Last_name string
@@ -498,6 +533,50 @@ func Week3Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week4Summary(pLeagueInfo LeagueInfo) {
+
+   week := 4
+   criteria := "Bench Warmers - Highest Team Bench Score"
+
+   var prizeEntries PrizeEntries
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         log.Printf("Week %d Summary: %s", week, err.Error())
+         return
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
+
+      benchPlayerPoints := GetBenchPlayerPoints(matchupRoster)
+
+      for _, benchPlayerPoints := range benchPlayerPoints {
+         prizeEntry.Score += benchPlayerPoints
+      }
+
+      prizeEntries = append(prizeEntries, prizeEntry)
+   }
+
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Team Bench Score: %f", prizeEntry.Owner, prizeEntry.Score)
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week12Summary(pLeagueInfo LeagueInfo, pYear int) {
 
    week := 12
@@ -644,6 +723,7 @@ func main() {
 
       Week1Summary(leagueInfo)
       Week3Summary(leagueInfo)
+      Week4Summary(leagueInfo)
       Week12Summary(leagueInfo, config.Year)
       Week13Summary(leagueInfo)
       Week14Summary(leagueInfo, config.Year)
