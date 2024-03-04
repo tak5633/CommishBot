@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"math"
@@ -491,43 +490,39 @@ func Week12Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player, pYear int
    week := 12
    criteria := "Butterfingers - Most Starting Team Fumbles"
 
-   var summaries []string
-   weekSummary := fmt.Sprintf("Week %d Criteria: %s", week, criteria)
-
-   summaries = append(summaries, weekSummary)
-   // log.Print(weekSummary)
+   var prizeEntries PrizeEntries
 
    matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
    playerStats := GetPlayerStats(pYear, week)
 
    for _, roster := range pLeagueInfo.mRosters {
-      owner := pLeagueInfo.mDisplayNames[roster.Owner_id]
-      // log.Printf("Owner: %s", owner)
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
       if err != nil {
          log.Printf("Week %d Summary: %s", week, err.Error())
          return
       }
 
-      totalFumbles := 0.0
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
 
       for _, starter := range matchupRoster.Starters {
          numFumbles := GetNumFumbles(playerStats, starter)
-         // starterName := GetPlayerName(pPlayers, starter)
-         // log.Printf("Starter: %s, Num Fumbles: %f", starterName, numFumbles)
-
-         totalFumbles += numFumbles
+         prizeEntry.Score += numFumbles
       }
 
-      // log.Printf("Total Fumbles: %f", totalFumbles)
-
-      summary := fmt.Sprintf("   Owner: %s, Total Fumbles: %f", owner, totalFumbles)
-      summaries = append(summaries, summary)
+      prizeEntries = append(prizeEntries, prizeEntry)
    }
 
-   for _, summary := range summaries {
-      log.Print(summary)
+   sort.Sort(prizeEntries)
+   prizeEntries.Reverse()
+
+   log.Printf("Week %d Criteria: %s", week, criteria)
+
+   for _, prizeEntry := range prizeEntries {
+      log.Printf("   Owner: %s, Total Fumbles: %f", prizeEntry.Owner, prizeEntry.Score)
    }
 }
 
