@@ -286,10 +286,10 @@ func GetMatchupOpponentRoster(pMatchups []Matchup, pRosterId int) (Matchup, erro
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func GetTotalStarterPoints(pMatchup Matchup) float64 {
+func (matchup Matchup) GetTotalStarterPoints() float64 {
    totalStarterPoints := 0.0
 
-   for _, starterPoints := range pMatchup.Starters_points {
+   for _, starterPoints := range matchup.Starters_points {
       totalStarterPoints += starterPoints
    }
 
@@ -299,16 +299,16 @@ func GetTotalStarterPoints(pMatchup Matchup) float64 {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func GetBenchPlayers(pMatchup Matchup) []string {
+func (matchup Matchup) GetBenchPlayers() []string {
    starterMap := make(map[string]int)
 
-   for _, starter := range pMatchup.Starters {
+   for _, starter := range matchup.Starters {
       starterMap[starter] = 0
    }
 
    var benchPlayers []string
 
-   for _, player := range pMatchup.Players {
+   for _, player := range matchup.Players {
       if _, isStarter := starterMap[player] ; !isStarter {
          benchPlayers = append(benchPlayers, player)
       }
@@ -320,12 +320,12 @@ func GetBenchPlayers(pMatchup Matchup) []string {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func GetBenchPlayerPoints(pMatchup Matchup) []float64 {
+func (matchup Matchup) GetBenchPlayerPoints() []float64 {
    var benchPlayerPoints []float64
-   benchPlayers := GetBenchPlayers(pMatchup)
+   benchPlayers := matchup.GetBenchPlayers()
 
    for _, benchPlayer := range benchPlayers {
-      benchPlayerPoints = append(benchPlayerPoints, pMatchup.Players_points[benchPlayer])
+      benchPlayerPoints = append(benchPlayerPoints, matchup.Players_points[benchPlayer])
    }
 
    return benchPlayerPoints
@@ -482,37 +482,26 @@ func (prizeEntries PrizeEntries) Reverse() {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week1Summary(pLeagueInfo LeagueInfo) {
+type WeekSummary struct {
+   Week int
+   Criteria string
+   PrizeEntries PrizeEntries
+   Err error
+}
 
-   week := 1
-   criteria := "Hot Start - Highest Starting Team Score"
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (summary WeekSummary) Print() {
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
-
-   for _, roster := range pLeagueInfo.mRosters {
-
-      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
-
-      if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
-      }
-
-      var prizeEntry PrizeEntry
-      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
-      prizeEntry.Score = GetTotalStarterPoints(matchupRoster)
-
-      prizeEntries = append(prizeEntries, prizeEntry)
+   if summary.Err != nil {
+      log.Printf("Week %d Summary: %s", summary.Week, summary.Err.Error())
+      return
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   log.Printf("Week %d Criteria: %s", summary.Week, summary.Criteria)
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
+   for _, prizeEntry := range summary.PrizeEntries {
       log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
    }
 }
@@ -520,37 +509,69 @@ func Week1Summary(pLeagueInfo LeagueInfo) {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week2Summary(pLeagueInfo LeagueInfo) {
+func Week1Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 2
-   criteria := "Dead Weight - Lowest Starting Player Score, Wins Matchup"
+   var summary WeekSummary
+   summary.Week = 1
+   summary.Criteria = "Hot Start - Highest Starting Team Score"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = matchupRoster.GetTotalStarterPoints()
+
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
+   }
+
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
+
+   return summary
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func Week2Summary(pLeagueInfo LeagueInfo) WeekSummary {
+
+   var summary WeekSummary
+   summary.Week = 2
+   summary.Criteria = "Dead Weight - Lowest Starting Player Score, Wins Matchup"
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         summary.Err = err
+         return summary
       }
 
       matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
       prizeEntry.Score = math.Inf(1)
 
-      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
-      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+      totalStarterPoints := matchupRoster.GetTotalStarterPoints()
+      totalOpponentStarterPoints := matchupOpponentRoster.GetTotalStarterPoints()
 
       if totalStarterPoints > totalOpponentStarterPoints {
          for _, starterPoints := range matchupRoster.Starters_points {
@@ -558,37 +579,32 @@ func Week2Summary(pLeagueInfo LeagueInfo) {
          }
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
+   sort.Sort(summary.PrizeEntries)
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week3Summary(pLeagueInfo LeagueInfo) {
+func Week3Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 3
-   criteria := "MVP - Highest Starting Player Score"
+   var summary WeekSummary
+   summary.Week = 3
+   summary.Criteria = "MVP - Highest Starting Player Score"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
@@ -599,238 +615,213 @@ func Week3Summary(pLeagueInfo LeagueInfo) {
          prizeEntry.Score = math.Max(prizeEntry.Score, starterPoints)
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Highest Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week4Summary(pLeagueInfo LeagueInfo) {
+func Week4Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 4
-   criteria := "Bench Warmers - Highest Team Bench Score"
+   var summary WeekSummary
+   summary.Week = 4
+   summary.Criteria = "Bench Warmers - Highest Team Bench Score"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
       prizeEntry.Score = 0.0
 
-      benchPlayerPoints := GetBenchPlayerPoints(matchupRoster)
+      benchPlayerPoints := matchupRoster.GetBenchPlayerPoints()
 
       for _, benchPlayerPoints := range benchPlayerPoints {
          prizeEntry.Score += benchPlayerPoints
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Team Bench Score: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week5Summary(pLeagueInfo LeagueInfo) {
+func Week5Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 5
-   criteria := "Biggest Loser - Highest Starting Team Score, Loses Matchup"
+   var summary WeekSummary
+   summary.Week = 5
+   summary.Criteria = "Biggest Loser - Highest Starting Team Score, Loses Matchup"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
       prizeEntry.Score = math.Inf(-1)
 
-      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
-      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+      totalStarterPoints := matchupRoster.GetTotalStarterPoints()
+      totalOpponentStarterPoints := matchupOpponentRoster.GetTotalStarterPoints()
 
       if totalStarterPoints < totalOpponentStarterPoints {
          prizeEntry.Score = totalStarterPoints
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week6Summary(pLeagueInfo LeagueInfo) {
+func Week6Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 6
-   criteria := "Photo Finish - Team With Closest Margin Of Victory"
+   var summary WeekSummary
+   summary.Week = 6
+   summary.Criteria = "Photo Finish - Team With Closest Margin Of Victory"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
       prizeEntry.Score = math.Inf(1)
 
-      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
-      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+      totalStarterPoints := matchupRoster.GetTotalStarterPoints()
+      totalOpponentStarterPoints := matchupOpponentRoster.GetTotalStarterPoints()
 
       if totalStarterPoints > totalOpponentStarterPoints {
          prizeEntry.Score = totalStarterPoints - totalOpponentStarterPoints
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
+   sort.Sort(summary.PrizeEntries)
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Margin of Victory: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week7Summary(pLeagueInfo LeagueInfo) {
+func Week7Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 7
-   criteria := "Biggest Blowout - Team With The Largest Margin of Victory"
+   var summary WeekSummary
+   summary.Week = 7
+   summary.Criteria = "Biggest Blowout - Team With The Largest Margin of Victory"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       matchupOpponentRoster, err :=  GetMatchupOpponentRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
       prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
       prizeEntry.Score = math.Inf(-1)
 
-      totalStarterPoints := GetTotalStarterPoints(matchupRoster)
-      totalOpponentStarterPoints := GetTotalStarterPoints(matchupOpponentRoster)
+      totalStarterPoints := matchupRoster.GetTotalStarterPoints()
+      totalOpponentStarterPoints := matchupOpponentRoster.GetTotalStarterPoints()
 
       if totalStarterPoints > totalOpponentStarterPoints {
          prizeEntry.Score = totalStarterPoints - totalOpponentStarterPoints
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Margin of Victory: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week12Summary(pLeagueInfo LeagueInfo, pYear int) {
+func Week12Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
 
-   week := 12
-   criteria := "Butterfingers - Most Starting Team Fumbles"
+   var summary WeekSummary
+   summary.Week = 12
+   summary.Criteria = "Butterfingers - Most Starting Team Fumbles"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
-   playerStats := GetPlayerStats(pYear, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+   playerStats := GetPlayerStats(pYear, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
@@ -842,38 +833,33 @@ func Week12Summary(pLeagueInfo LeagueInfo, pYear int) {
          prizeEntry.Score += numFumbles
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Total Fumbles: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week13Summary(pLeagueInfo LeagueInfo) {
+func Week13Summary(pLeagueInfo LeagueInfo) WeekSummary {
 
-   week := 13
-   criteria := "Blackjack - Staring Player Score Closest to 21 Without Going Over"
+   var summary WeekSummary
+   summary.Week = 13
+   summary.Criteria = "Blackjack - Staring Player Score Closest to 21 Without Going Over"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
@@ -886,39 +872,34 @@ func Week13Summary(pLeagueInfo LeagueInfo) {
          }
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Blackjack Points: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week14Summary(pLeagueInfo LeagueInfo, pYear int) {
+func Week14Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
 
-   week := 14
-   criteria := "Touchdown Dance - Team With The Most Touchdowns (Excludes QB Passing Touchdowns)"
+   var summary WeekSummary
+   summary.Week = 14
+   summary.Criteria = "Touchdown Dance - Team With The Most Touchdowns (Excludes QB Passing Touchdowns)"
 
-   var prizeEntries PrizeEntries
-
-   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, week)
-   playerStats := GetPlayerStats(pYear, week)
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+   playerStats := GetPlayerStats(pYear, summary.Week)
 
    for _, roster := range pLeagueInfo.mRosters {
 
       matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
 
       if err != nil {
-         log.Printf("Week %d Summary: %s", week, err.Error())
-         return
+         summary.Err = err
+         return summary
       }
 
       var prizeEntry PrizeEntry
@@ -930,17 +911,13 @@ func Week14Summary(pLeagueInfo LeagueInfo, pYear int) {
          prizeEntry.Score += numNonPassingTds
       }
 
-      prizeEntries = append(prizeEntries, prizeEntry)
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
    }
 
-   sort.Sort(prizeEntries)
-   prizeEntries.Reverse()
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
 
-   log.Printf("Week %d Criteria: %s", week, criteria)
-
-   for _, prizeEntry := range prizeEntries {
-      log.Printf("   Owner: %s, Total Touchdowns: %f", prizeEntry.Owner, prizeEntry.Score)
-   }
+   return summary
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -958,16 +935,16 @@ func main() {
       leagueInfo := GetLeagueInfo(userLeagues[0].League_id)
       // players := GetPlayers()
 
-      Week1Summary(leagueInfo)
-      Week2Summary(leagueInfo)
-      Week3Summary(leagueInfo)
-      Week4Summary(leagueInfo)
-      Week5Summary(leagueInfo)
-      Week6Summary(leagueInfo)
-      Week7Summary(leagueInfo)
-      Week12Summary(leagueInfo, config.Year)
-      Week13Summary(leagueInfo)
-      Week14Summary(leagueInfo, config.Year)
+      Week1Summary(leagueInfo).Print()
+      Week2Summary(leagueInfo).Print()
+      Week3Summary(leagueInfo).Print()
+      Week4Summary(leagueInfo).Print()
+      Week5Summary(leagueInfo).Print()
+      Week6Summary(leagueInfo).Print()
+      Week7Summary(leagueInfo).Print()
+      Week12Summary(leagueInfo, config.Year).Print()
+      Week13Summary(leagueInfo).Print()
+      Week14Summary(leagueInfo, config.Year).Print()
    }
 }
 
