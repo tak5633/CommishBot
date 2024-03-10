@@ -1005,6 +1005,59 @@ func Week10Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week11Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
+
+   var summary WeekSummary
+   summary.Week = 11
+   summary.Criteria = "Underperformer - Team With The Most Points Under Their Weekly Projection"
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         summary.Err = err
+         return summary
+      }
+
+      starterPlayerPoints := matchupRoster.GetStarterPlayerPoints()
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
+
+      for _, starter := range matchupRoster.Starters {
+
+         starterProjection, err := GetProjectedPlayerWeekScore(starter, pYear, summary.Week, pLeagueInfo.mLeague.Scoring_settings)
+
+         if err != nil {
+            summary.Err = err
+            return summary
+         }
+
+         starterPoints, hasStarterPoints := starterPlayerPoints[starter]
+
+         if !hasStarterPoints {
+            summary.Err = errors.New("Failed to retrieve player " + starter + " points")
+            return summary
+         }
+
+         prizeEntry.Score += (starterPoints - starterProjection)
+      }
+
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
+   }
+
+   sort.Sort(summary.PrizeEntries)
+
+   return summary
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week12Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
 
    var summary WeekSummary
@@ -1142,6 +1195,7 @@ func main() {
       Week6Summary(leagueInfo).Print()
       Week7Summary(leagueInfo).Print()
       Week10Summary(leagueInfo, config.Year).Print()
+      Week11Summary(leagueInfo, config.Year).Print()
       Week12Summary(leagueInfo, config.Year).Print()
       Week13Summary(leagueInfo).Print()
       Week14Summary(leagueInfo, config.Year).Print()
