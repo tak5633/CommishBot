@@ -73,6 +73,8 @@ type League struct {
 
    Total_rosters int
    Roster_positions []string
+
+   Scoring_settings map[string]json.RawMessage
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -114,6 +116,50 @@ func GetLeague(pLeagueId string) League {
    check(err)
 
    return league
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetScoringValue(pScoringSettings map[string]json.RawMessage, pScoringKey string) (float64, error) {
+
+   keyExceptions := make(map[string]float64)
+   keyExceptions["adp_dd_ppr"] = 0.0
+   keyExceptions["cmp_pct"] = 0.0
+   keyExceptions["def_fum_td"] = 0.0
+   keyExceptions["def_kr_yd"] = 0.0
+   keyExceptions["def_pr_td"] = 0.0
+   keyExceptions["def_pr_yd"] = 0.0
+   keyExceptions["fga"] = 0.0
+   keyExceptions["gp"] = 0.0
+   keyExceptions["pos_adp_dd_ppr"] = 0.0
+   keyExceptions["pr"] = 0.0
+   keyExceptions["pr_td"] = 0.0
+   keyExceptions["pr_yd"] = 0.0
+   keyExceptions["pts_half_ppr"] = 0.0
+   keyExceptions["pts_ppr"] = 0.0
+   keyExceptions["pts_std"] = 0.0
+   keyExceptions["rec_tgt"] = 0.0
+   keyExceptions["xpa"] = 0.0
+
+   scoringValueData, hasKey := pScoringSettings[pScoringKey]
+
+   if !hasKey {
+      if exceptionValue, isException := keyExceptions[pScoringKey] ; isException {
+         return exceptionValue, nil
+      }
+
+      return 0.0, errors.New("Failed to retrieve " + pScoringKey + " score setting")
+   }
+
+   var scoringValue float64
+   err := json.Unmarshal([]byte(scoringValueData), &scoringValue)
+
+   if err != nil {
+      return 0.0, errors.New("Failed to unmarshal " + pScoringKey + " score setting")
+   }
+
+   return scoringValue, nil
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -299,6 +345,19 @@ func (matchup Matchup) GetTotalStarterPoints() float64 {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func (matchup Matchup) GetStarterPlayerPoints() map[string]float64 {
+   starterMap := make(map[string]float64)
+
+   for _, starter := range matchup.Starters {
+      starterMap[starter] = matchup.Players_points[starter]
+   }
+
+   return starterMap
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func (matchup Matchup) GetBenchPlayers() []string {
    starterMap := make(map[string]int)
 
@@ -436,6 +495,92 @@ func GetNumNonPassingTds(pPlayerStats map[string]PlayerStats, pPlayerId string) 
    starterStats := pPlayerStats[pPlayerId]
 
    return starterStats.Rec_td + starterStats.Rush_td + starterStats.Def_td
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetProjectedPlayerStatsData(pPlayerId string, pYear int) string {
+   return GetHttpResponse("https://api.sleeper.com/projections/nfl/player/" + pPlayerId + "?season_type=regular&season=" + strconv.Itoa(pYear) + "&grouping=week")
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetProjectedPlayerStats(pPlayerId string, pYear int) map[string]json.RawMessage {
+
+   projectedPlayerStatsData := GetProjectedPlayerStatsData(pPlayerId, pYear)
+
+   var projectedPlayerStats map[string]json.RawMessage
+   err := json.Unmarshal([]byte(projectedPlayerStatsData), &projectedPlayerStats)
+   check(err)
+
+   return projectedPlayerStats
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetProjectedPlayerWeekStats(pPlayerId string, pYear int, pWeek int) (map[string]float64, error) {
+
+   yearStr := strconv.Itoa(pYear)
+   weekStr := strconv.Itoa(pWeek)
+
+   projectedPlayerStats := GetProjectedPlayerStats(pPlayerId, pYear)
+   projectedWeekData, hasKey := projectedPlayerStats[weekStr]
+
+   if !hasKey {
+      return nil, errors.New("Failed to retrieve " + yearStr + " week " + weekStr + " projections for player Id " + pPlayerId)
+   }
+
+   var projectedWeek map[string]json.RawMessage
+   err := json.Unmarshal([]byte(projectedWeekData), &projectedWeek)
+
+   if err != nil {
+      return nil, errors.New("Failed to unmarshal " + yearStr + " week " + weekStr + " projections for player Id " + pPlayerId)
+   }
+
+   projectedWeekStatsData, hasKey := projectedWeek["stats"]
+
+   if !hasKey {
+      return nil, errors.New("Failed to retrieve " + yearStr + " week " + weekStr + " stat projections for player Id " + pPlayerId)
+   }
+
+   var projectedWeekStats map[string]float64
+   err = json.Unmarshal([]byte(projectedWeekStatsData), &projectedWeekStats)
+
+   if err != nil {
+      return nil, errors.New("Failed to unmarshal " + yearStr + " week " + weekStr + " stat projections for player Id " + pPlayerId)
+   }
+
+   return projectedWeekStats, nil
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func GetProjectedPlayerWeekScore(pPlayerId string, pYear int, pWeek int, pScoringSettings map[string]json.RawMessage) (float64, error) {
+
+   projectedWeekStats, err := GetProjectedPlayerWeekStats(pPlayerId, pYear, pWeek)
+
+   if err != nil {
+      return 0.0, err
+   }
+
+   starterProjection := 0.0
+
+   for statKey, statValue := range projectedWeekStats {
+
+      scoringValue, err := GetScoringValue(pScoringSettings, statKey)
+
+      if err != nil {
+         return 0.0, err
+      }
+
+      starterProjection += scoringValue * statValue
+   }
+
+   return starterProjection, nil
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -806,6 +951,60 @@ func Week7Summary(pLeagueInfo LeagueInfo) WeekSummary {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
+func Week10Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
+
+   var summary WeekSummary
+   summary.Week = 10
+   summary.Criteria = "Overachiver - Team With The Most Points Over Their Weekly Projection"
+
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         summary.Err = err
+         return summary
+      }
+
+      starterPlayerPoints := matchupRoster.GetStarterPlayerPoints()
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+      prizeEntry.Score = 0.0
+
+      for _, starter := range matchupRoster.Starters {
+
+         starterProjection, err := GetProjectedPlayerWeekScore(starter, pYear, summary.Week, pLeagueInfo.mLeague.Scoring_settings)
+
+         if err != nil {
+            summary.Err = err
+            return summary
+         }
+
+         starterPoints, hasStarterPoints := starterPlayerPoints[starter]
+
+         if !hasStarterPoints {
+            summary.Err = errors.New("Failed to retrieve player " + starter + " points")
+            return summary
+         }
+
+         prizeEntry.Score += (starterPoints - starterProjection)
+      }
+
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
+   }
+
+   sort.Sort(summary.PrizeEntries)
+   summary.PrizeEntries.Reverse()
+
+   return summary
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
 func Week12Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
 
    var summary WeekSummary
@@ -942,6 +1141,7 @@ func main() {
       Week5Summary(leagueInfo).Print()
       Week6Summary(leagueInfo).Print()
       Week7Summary(leagueInfo).Print()
+      Week10Summary(leagueInfo, config.Year).Print()
       Week12Summary(leagueInfo, config.Year).Print()
       Week13Summary(leagueInfo).Print()
       Week14Summary(leagueInfo, config.Year).Print()
