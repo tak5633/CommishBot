@@ -1,22 +1,51 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"log"
 	"math"
 	"net/http"
-	"os"
 	"sort"
 )
 
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-type Config struct {
-   Username string
-   Year int
+func main() {
+   config := GetConfig("Config.json")
+   log.Printf("%+v", config)
+
+   user := GetUser(config.Username)
+   userLeagues := GetUserLeagues(user.User_id, config.Year)
+
+   if len(userLeagues) > 0 {
+
+      leagueInfo := GetLeagueInfo(userLeagues[0].League_id)
+      // players := GetPlayers()
+
+      Week1Summary(leagueInfo).Print()
+      Week2Summary(leagueInfo).Print()
+      Week3Summary(leagueInfo).Print()
+      Week4Summary(leagueInfo).Print()
+      Week5Summary(leagueInfo).Print()
+      Week6Summary(leagueInfo).Print()
+      Week7Summary(leagueInfo).Print()
+      Week10Summary(leagueInfo, config.Year).Print()
+      Week11Summary(leagueInfo, config.Year).Print()
+      Week12Summary(leagueInfo, config.Year).Print()
+      Week13Summary(leagueInfo).Print()
+      Week14Summary(leagueInfo, config.Year).Print()
+   }
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func check(pE error) {
+   if pE != nil {
+      panic(pE)
+   }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -552,59 +581,4 @@ func Week14Summary(pLeagueInfo LeagueInfo, pYear int) WeekSummary {
    summary.PrizeEntries.Reverse()
 
    return summary
-}
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-func main() {
-   config := GetConfig("Config.json")
-   log.Printf("%+v", config)
-
-   user := GetUser(config.Username)
-   userLeagues := GetUserLeagues(user.User_id, config.Year)
-
-   if len(userLeagues) > 0 {
-
-      leagueInfo := GetLeagueInfo(userLeagues[0].League_id)
-      // players := GetPlayers()
-
-      Week1Summary(leagueInfo).Print()
-      Week2Summary(leagueInfo).Print()
-      Week3Summary(leagueInfo).Print()
-      Week4Summary(leagueInfo).Print()
-      Week5Summary(leagueInfo).Print()
-      Week6Summary(leagueInfo).Print()
-      Week7Summary(leagueInfo).Print()
-      Week10Summary(leagueInfo, config.Year).Print()
-      Week11Summary(leagueInfo, config.Year).Print()
-      Week12Summary(leagueInfo, config.Year).Print()
-      Week13Summary(leagueInfo).Print()
-      Week14Summary(leagueInfo, config.Year).Print()
-   }
-}
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-func check(pE error) {
-   if pE != nil {
-      panic(pE)
-   }
-}
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-func GetConfig(pFilePath string) Config {
-   file, _ := os.Open(pFilePath)
-   defer file.Close()
-
-   var config Config
-   decoder := json.NewDecoder(file)
-
-   err := decoder.Decode(&config)
-   check(err)
-
-   return config
 }
