@@ -37,31 +37,6 @@ func GetHttpResponse(pRequest string) string {
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-type LeagueInfo struct {
-   mLeague League
-   mLeagueUsers []LeagueUser
-   mDisplayNames map[string]string
-   mRosters []Roster
-}
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
-func GetLeagueInfo(pLeagueId string) LeagueInfo {
-   var leagueInfo LeagueInfo
-
-   leagueInfo.mLeague = GetLeague(pLeagueId)
-   leagueInfo.mLeagueUsers = GetLeagueUsers(pLeagueId)
-   leagueInfo.mRosters = GetRosters(pLeagueId)
-
-   leagueInfo.mDisplayNames = MakeDisplayNamesMap(leagueInfo.mLeagueUsers)
-
-   return leagueInfo
-}
-
-//--------------------------------------------------------------------------------------------------
-//
-//--------------------------------------------------------------------------------------------------
 type Player struct {
    First_name string
    Last_name string
