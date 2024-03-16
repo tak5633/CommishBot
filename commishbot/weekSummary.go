@@ -24,7 +24,7 @@ func (summary WeekSummary) Print() {
 
    log.Printf("Week %d Criteria: %s", summary.Week, summary.Criteria)
 
-   for _, prizeEntry := range summary.PrizeEntries {
-      log.Printf("   Owner: %s, Starter Points: %f", prizeEntry.Owner, prizeEntry.Score)
+   for idx, prizeEntry := range summary.PrizeEntries {
+      log.Printf("   %d. Owner: %s, Score: %f", idx+1, prizeEntry.Owner, prizeEntry.Score)
    }
 }

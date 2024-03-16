@@ -32,6 +32,7 @@ func main() {
       Week6Summary(leagueInfo).Print()
       Week7Summary(leagueInfo).Print()
       Week8Summary(leagueInfo, players).Print()
+      Week9Summary(leagueInfo, players).Print()
       Week10Summary(leagueInfo, config.Year).Print()
       Week11Summary(leagueInfo, config.Year).Print()
       Week12Summary(leagueInfo, config.Year).Print()
@@ -399,13 +400,34 @@ func Week8Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player) WeekSummar
 //--------------------------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------------------------
-func Week9Summary() WeekSummary {
+func Week9Summary(pLeagueInfo LeagueInfo, pPlayers map[string]Player) WeekSummary {
 
    var summary WeekSummary
    summary.Week = 9
    summary.Criteria = "Worst Manager - Team Farthest From A Perfect Lineup Based On Their Roster"
 
-   // TODO (tknack): Implement
+   matchups := GetMatchups(pLeagueInfo.mLeague.League_id, summary.Week)
+
+   for _, roster := range pLeagueInfo.mRosters {
+
+      matchupRoster, err := GetMatchupRoster(matchups, roster.Roster_id)
+
+      if err != nil {
+         summary.Err = err
+         return summary
+      }
+
+      var prizeEntry PrizeEntry
+      prizeEntry.Owner = pLeagueInfo.mDisplayNames[roster.Owner_id]
+
+      totalStarterPoints := matchupRoster.GetTotalStarterPoints()
+      maxRosterPoints := matchupRoster.GetMaxRosterPoints(pPlayers, pLeagueInfo.mLeague.mRosterPositionCounts)
+      prizeEntry.Score = totalStarterPoints / maxRosterPoints * 100.0
+
+      summary.PrizeEntries = append(summary.PrizeEntries, prizeEntry)
+   }
+
+   sort.Sort(summary.PrizeEntries)
 
    return summary
 }
