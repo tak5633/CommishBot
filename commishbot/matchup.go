@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"math"
+	"sort"
 	"strconv"
 )
 
@@ -133,4 +135,109 @@ func (matchup Matchup) GetBenchPlayerPoints() []float64 {
    }
 
    return benchPlayerPoints
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (matchup Matchup) GetMaxRosterPoints(pPlayers map[string]Player, pStarterPositionCounts map[string]int) float64 {
+
+   var maxStarterPoints []float64
+
+   maxQbPoints, _ := matchup.getMaxPlayerPoints("QB", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxQbPoints...)
+
+   maxRbPoints, remainingRbPoints := matchup.getMaxPlayerPoints("RB", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxRbPoints...)
+
+   maxWrPoints, remainingWrPoints := matchup.getMaxPlayerPoints("WR", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxWrPoints...)
+
+   maxTePoints, remainingTePoints := matchup.getMaxPlayerPoints("TE", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxTePoints...)
+
+   maxKPoints, _ := matchup.getMaxPlayerPoints("K", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxKPoints...)
+
+   maxDefPoints, _ := matchup.getMaxPlayerPoints("DEF", pPlayers, pStarterPositionCounts)
+   maxStarterPoints = append(maxStarterPoints, maxDefPoints...)
+
+   var flexPoints []float64
+   numFlexPositions := pStarterPositionCounts["FLEX"]
+
+   flexRbPoints, _ := removeElements(remainingRbPoints, numFlexPositions)
+   flexPoints = append(flexPoints, flexRbPoints...)
+
+   flexWrPoints, _ := removeElements(remainingWrPoints, numFlexPositions)
+   flexPoints = append(flexPoints, flexWrPoints...)
+
+   flexTePoints, _ := removeElements(remainingTePoints, numFlexPositions)
+   flexPoints = append(flexPoints, flexTePoints...)
+
+   sort.Sort(sort.Reverse(sort.Float64Slice(flexPoints)))
+   maxFlexPoints, _ := removeElements(flexPoints, numFlexPositions)
+   maxStarterPoints = append(maxStarterPoints, maxFlexPoints...)
+
+   maxPoints := 0.0
+
+   for _, curMaxStarterPoints := range maxStarterPoints {
+      maxPoints += curMaxStarterPoints
+   }
+
+   return maxPoints
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (matchup Matchup) getMaxPlayerPoints(pPosition string, pPlayers map[string]Player, pPositionCounts map[string]int) ([]float64, []float64) {
+
+   playerPoints := matchup.getPlayerPoints(pPosition, pPlayers)
+   sort.Sort(sort.Reverse(sort.Float64Slice(playerPoints)))
+
+   maxPlayerPoints, remainingPlayerPoints := removeElements(playerPoints, pPositionCounts[pPosition])
+
+   return maxPlayerPoints, remainingPlayerPoints
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (matchup Matchup) getPlayerPoints(pPosition string, pPlayers map[string]Player) []float64 {
+   var playerPoints []float64
+   players := matchup.getPlayers(pPosition, pPlayers)
+
+   for _, player := range players {
+      playerPoints = append(playerPoints, matchup.Players_points[player])
+   }
+
+   return playerPoints
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (matchup Matchup) getPlayers(pPosition string, pPlayers map[string]Player) []string {
+   var playerIds []string
+
+   for _, playerId := range matchup.Players {
+      player := pPlayers[playerId]
+
+      if player.Position == pPosition {
+         playerIds = append(playerIds, playerId)
+      }
+   }
+
+   return playerIds
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func removeElements(pSlice []float64, pNumElements int) ([]float64, []float64) {
+
+   clampedNumElements := int(math.Min(float64(len(pSlice)), float64(pNumElements)))
+   removedElements, remainingElements := pSlice[0:clampedNumElements], pSlice[clampedNumElements:]
+
+   return removedElements, remainingElements
 }

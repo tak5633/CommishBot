@@ -12,6 +12,7 @@ type Player struct {
    First_name string
    Last_name string
    Full_name string
+   Position string
 }
 
 //--------------------------------------------------------------------------------------------------

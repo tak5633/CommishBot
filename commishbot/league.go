@@ -17,6 +17,7 @@ type League struct {
 
    Total_rosters int
    Roster_positions []string
+   mRosterPositionCounts map[string]int
 
    Scoring_settings map[string]json.RawMessage
 }
@@ -59,7 +60,20 @@ func GetLeague(pLeagueId string) League {
    err := json.Unmarshal([]byte(leagueData), &league)
    check(err)
 
+   league.populateRosterPositionCounts()
+
    return league
+}
+
+//--------------------------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------------------------
+func (league *League) populateRosterPositionCounts() {
+   league.mRosterPositionCounts = make(map[string]int)
+
+   for _, rosterPosition := range league.Roster_positions {
+      league.mRosterPositionCounts[rosterPosition]++
+   }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -105,4 +119,3 @@ func GetScoringValue(pScoringSettings map[string]json.RawMessage, pScoringKey st
 
    return scoringValue, nil
 }
-
